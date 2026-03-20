@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
@@ -11,6 +12,13 @@ DEFAULT_UVA_TUNING = {
     "rhg_uva_b": 1.6344,
     "rhg_uva_c": -23.752,
 }
+REPO_ROOT = Path(__file__).resolve().parent
+DEFAULT_INPUT_CSV = "inputs/DGM_Valid_CAO.csv"
+DEFAULT_OUTPUT_SUMMARY_CSV = "outputs/Hg_budget_summary.csv"
+DEFAULT_OUTPUT_METRICS_CSV = "outputs/Hg_model_metrics.csv"
+DEFAULT_OUTPUT_TUNING_CSV = "outputs/Hg_uva_tuning_result.csv"
+DEFAULT_TUNED_SUMMARY_CSV = "outputs/Hg_budget_summary_tuned.csv"
+DEFAULT_TUNED_METRICS_CSV = "outputs/Hg_model_metrics_tuned.csv"
 
 
 def _normalize_tuning(tuning: dict[str, float] | None) -> dict[str, float]:
@@ -18,6 +26,19 @@ def _normalize_tuning(tuning: dict[str, float] | None) -> dict[str, float]:
     if tuning:
         out.update(tuning)
     return out
+
+
+def _resolve_repo_path(path: str | Path) -> Path:
+    p = Path(path)
+    if p.is_absolute():
+        return p
+    return REPO_ROOT / p
+
+
+def _prepare_output_path(path: str | Path) -> Path:
+    output_path = _resolve_repo_path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
 
 
 def solve_cao_ss_direct(
@@ -84,15 +105,16 @@ def solve_cao_ss_direct(
 
 
 def run_model(
-    input_csv: str = "DGM_Valid_CAO.csv",
-    output_summary_csv: str | None = "Hg_budget_summary.csv",
-    output_metrics_csv: str | None = "Hg_model_metrics.csv",
+    input_csv: str | Path = DEFAULT_INPUT_CSV,
+    output_summary_csv: str | Path | None = DEFAULT_OUTPUT_SUMMARY_CSV,
+    output_metrics_csv: str | Path | None = DEFAULT_OUTPUT_METRICS_CSV,
     tuning: dict[str, float] | None = None,
     verbose: bool = True,
 ):
     coeff = _normalize_tuning(tuning)
 
-    data = pd.read_csv(input_csv)
+    input_path = _resolve_repo_path(input_csv)
+    data = pd.read_csv(input_path)
     rows = []
 
     for i, row in data.iterrows():
@@ -432,7 +454,7 @@ def run_model(
 
     result_table = pd.DataFrame(rows)
     if output_summary_csv is not None:
-        result_table.to_csv(output_summary_csv, index=False)
+        result_table.to_csv(_prepare_output_path(output_summary_csv), index=False)
 
     obs = result_table["DGM_obs"].to_numpy(dtype=float)
     sim = result_table["Hg0_water"].to_numpy(dtype=float)
@@ -490,7 +512,7 @@ def run_model(
         ]
     )
     if output_metrics_csv is not None:
-        metrics_table.to_csv(output_metrics_csv, index=False)
+        metrics_table.to_csv(_prepare_output_path(output_metrics_csv), index=False)
 
     return result_table, metrics_table
 
@@ -525,14 +547,14 @@ def _score_alignment(metrics: dict[str, float], slope_weight: float) -> float:
 
 
 def optimize_uva_coefficients(
-    input_csv: str = "DGM_Valid_CAO.csv",
+    input_csv: str | Path = DEFAULT_INPUT_CSV,
     random_seed: int = 42,
     n_starts: int = 20,
     n_iters: int = 120,
     slope_weight: float = 2.0,
-    output_tuning_csv: str = "Hg_uva_tuning_result.csv",
-    output_summary_csv: str = "Hg_budget_summary_tuned.csv",
-    output_metrics_csv: str = "Hg_model_metrics_tuned.csv",
+    output_tuning_csv: str | Path = DEFAULT_OUTPUT_TUNING_CSV,
+    output_summary_csv: str | Path = DEFAULT_TUNED_SUMMARY_CSV,
+    output_metrics_csv: str | Path = DEFAULT_TUNED_METRICS_CSV,
 ) -> tuple[dict[str, float], pd.DataFrame, pd.DataFrame, dict[str, float]]:
     bounds = {
         "ko_uva_num": (0.10, 0.80),
@@ -629,7 +651,7 @@ def optimize_uva_coefficients(
         "objective_score": tuned_score,
         "slope_weight": slope_weight,
     }
-    pd.DataFrame([out]).to_csv(output_tuning_csv, index=False)
+    pd.DataFrame([out]).to_csv(_prepare_output_path(output_tuning_csv), index=False)
 
     print("\n===== UVA Coefficient Tuning Result =====")
     for n in names:
@@ -647,9 +669,9 @@ def _build_cli() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run CAO Hg model and optionally tune ko_UVA / RHg_UVA coefficients."
     )
-    parser.add_argument("--input-csv", default="DGM_Valid_CAO.csv")
-    parser.add_argument("--output-summary-csv", default="Hg_budget_summary.csv")
-    parser.add_argument("--output-metrics-csv", default="Hg_model_metrics.csv")
+    parser.add_argument("--input-csv", default=DEFAULT_INPUT_CSV)
+    parser.add_argument("--output-summary-csv", default=DEFAULT_OUTPUT_SUMMARY_CSV)
+    parser.add_argument("--output-metrics-csv", default=DEFAULT_OUTPUT_METRICS_CSV)
     parser.add_argument(
         "--tune-uva",
         action="store_true",
@@ -664,7 +686,7 @@ def _build_cli() -> argparse.ArgumentParser:
         default=2.0,
         help="Weight for |slope_sim(sal)-slope_obs(sal)| in objective.",
     )
-    parser.add_argument("--output-tuning-csv", default="Hg_uva_tuning_result.csv")
+    parser.add_argument("--output-tuning-csv", default=DEFAULT_OUTPUT_TUNING_CSV)
     return parser
 
 

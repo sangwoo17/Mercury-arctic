@@ -3,7 +3,7 @@ clc; clear;
 %% =========================
 % 0) Load data and common subset
 % =========================
-data = readtable('DGM_Eval_CAO.csv');
+data = readtable('inputs/DGM_Eval_CAO.csv');
 
 ice_thr = 0.15;
 s_min   = 26.46;
@@ -47,8 +47,8 @@ for ii = 1:numel(ice_mult_list)
     end
 end
 
-writetable(AllResults, 'Hg_phase_space_all_5x5.csv');
-writetable(SummaryTable, 'Hg_phase_space_summary_5x5.csv');
+writetable(AllResults, 'outputs/Hg_phase_space_all_5x5.csv');
+writetable(SummaryTable, 'outputs/Hg_phase_space_summary_5x5.csv');
 
 %% =========================
 % 2) Baseline delta summary
@@ -74,12 +74,12 @@ SummaryTable.DomScore = abs(SummaryTable.d_Net) - abs(SummaryTable.d_AS);
 % DomScore > 0 : chemistry-dominated
 % DomScore < 0 : exchange-dominated
 
-writetable(SummaryTable, 'Hg_phase_space_summary_5x5_delta.csv');
+writetable(SummaryTable, 'outputs/Hg_phase_space_summary_5x5_delta.csv');
 
 disp('Saved:')
-disp(' - Hg_phase_space_all_5x5.csv')
-disp(' - Hg_phase_space_summary_5x5.csv')
-disp(' - Hg_phase_space_summary_5x5_delta.csv')
+disp(' - outputs/Hg_phase_space_all_5x5.csv')
+disp(' - outputs/Hg_phase_space_summary_5x5.csv')
+disp(' - outputs/Hg_phase_space_summary_5x5_delta.csv')
 
 %% =========================
 % Local function: phase scenario

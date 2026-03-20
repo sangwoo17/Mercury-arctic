@@ -1,6 +1,6 @@
 clc; clear; 
 
-data = readtable('DGM_Valid_CAO.csv');
+data = readtable('inputs/DGM_Valid_CAO.csv');
 ResultTable = table();
 
 for i = 1:height(data)
@@ -319,7 +319,7 @@ f_Bio_1 = k_Bio(1);
 
 end
 
-writetable(ResultTable, 'Hg_budget_summary.csv');
+writetable(ResultTable, 'outputs/Hg_budget_summary.csv');
 
 
 
@@ -385,7 +385,7 @@ fprintf('Mean Bias     = %.4f\n', Bias);
 MetricsTable = table(n, R2_reg, R2_corr, r, RMSE, slope, intercept, PBIAS, Bias, ...
     'VariableNames', {'N','R2_reg','R2_corr','r','RMSE','Slope','Intercept','PBIAS_percent','MeanBias'});
 
-writetable(MetricsTable, 'Hg_model_metrics.csv');
+writetable(MetricsTable, 'outputs/Hg_model_metrics.csv');
 
 
 function c_ss = solve_CAO_ss_direct(A,V,M_vol,MB,CS,ESS,CAO_nt,CAO_et,...

@@ -1,6 +1,6 @@
 clc; clear; 
 
-data = readtable('DGM_Valid_CAO.csv');
+data = readtable('inputs/DGM_Valid_CAO.csv');
 
 ResultTable = table();
 
@@ -347,7 +347,7 @@ f_Bio_1 = k_Bio(1);
 
 end
 
-writetable(ResultTable, 'Hg_budget_summary.csv');
+writetable(ResultTable, 'outputs/Hg_budget_summary.csv');
 
 
 % Observed and Predicted data

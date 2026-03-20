@@ -335,4 +335,4 @@ ResultTable = [ResultTable; NewRow];
 end
 
 
-writetable(ResultTable,'Hg_budget_summary.csv')
+writetable(ResultTable,'outputs/Hg_budget_summary.csv')

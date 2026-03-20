@@ -1,7 +1,7 @@
 # Research Log: DGM Alignment Tuning
 
 ## 1) 목표
-- 데이터: `DGM_Valid_CAO.csv`의 관측 `DGM`
+- 데이터: `inputs/DGM_Valid_CAO.csv`의 관측 `DGM`
 - 모델: `Unit_WorM3_CAO_All_Calib_Direct.py`
 - 이슈: salinity-DGM 관계에서 모델 slope가 관측 slope와 불일치
 - 조정 대상: `ko_UVA` 계수, `RHg_UVA` 분자식 계수
@@ -48,7 +48,7 @@
 - 전체 오차(RMSE)와 편향(PBIAS)도 동반 개선.
 
 ## 5) 노트북 산출물
-생성 파일: `DGM_tuned_analysis.ipynb`
+생성 파일: `notebooks/DGM_tuned_analysis.ipynb`
 
 노트북 내용:
 - 최적 계수 적용 모델 재실행
@@ -59,18 +59,18 @@
   - Baseline/Tuned 산점도 + 1:1선 + 회귀선
 
 노트북/분석 코드에서 생성된 그림:
-- `fig_tuned_variable_comparison.png`
-- `fig_obs_vs_model_baseline_vs_tuned.png`
+- `outputs/fig_tuned_variable_comparison.png`
+- `outputs/fig_obs_vs_model_baseline_vs_tuned.png`
 
 ## 6) 재실행 명령
 ```bash
 uv run python Unit_WorM3_CAO_All_Calib_Direct.py \
   --tune-uva \
-  --input-csv DGM_Valid_CAO.csv \
+  --input-csv inputs/DGM_Valid_CAO.csv \
   --n-starts 20 \
   --n-iters 120 \
   --slope-weight 2.0 \
-  --output-summary-csv Hg_budget_summary_tuned_best.csv \
-  --output-metrics-csv Hg_model_metrics_tuned_best.csv \
-  --output-tuning-csv Hg_uva_tuning_result.csv
+  --output-summary-csv outputs/Hg_budget_summary_tuned_best.csv \
+  --output-metrics-csv outputs/Hg_model_metrics_tuned_best.csv \
+  --output-tuning-csv outputs/Hg_uva_tuning_result.csv
 ```

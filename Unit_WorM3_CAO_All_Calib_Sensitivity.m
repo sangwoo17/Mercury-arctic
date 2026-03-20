@@ -1,6 +1,6 @@
 clc; clear;
 
-data = readtable('DGM_Eval_CAO.csv');
+data = readtable('inputs/DGM_Eval_CAO.csv');
 
 eps_rel = 0.001;   % 0.1%
 
@@ -108,7 +108,7 @@ for i = 1:height(data)
     SensTable = [SensTable; NewRow];
 end
 
-writetable(SensTable, 'Hg_sensitivity_0p1pct.csv');
+writetable(SensTable, 'outputs/Hg_sensitivity_0p1pct.csv');
 
 fprintf('\nMedian sensitivities (DGM)\n');
 fprintf('T   = %.3f\n', median(SensTable.Sens_T_DGM, 'omitnan'));

@@ -1,0 +1,53 @@
+{
+  "best_coeffs": {
+    "ko_uva_num": 0.350407009078024,
+    "rhg_uva_a": -0.02243776483632441,
+    "rhg_uva_b": 1.4911911655729884,
+    "rhg_uva_c": -23.612521190306616
+  },
+  "baseline_stats": {
+    "N": 76,
+    "R2_reg": 0.7302287015893892,
+    "R2_corr": 0.7302287015893892,
+    "r": 0.8545342015328522,
+    "RMSE": 0.026671592545682993,
+    "Slope": 0.6671836995548788,
+    "Intercept": 0.026643568156572556,
+    "PBIAS_percent": 9.982686540893292,
+    "MeanBias": -0.011415727464066263,
+    "SalinitySlope_obs": 0.040052054375630516,
+    "SalinitySlope_model": 0.03166168114589201,
+    "SalinitySlope_gap": -0.008390373229738506
+  },
+  "tuned_stats": {
+    "N": 76,
+    "R2_reg": 0.7816608599601124,
+    "R2_corr": 0.7816608599601123,
+    "r": 0.8841158634252143,
+    "RMSE": 0.022146486716501494,
+    "Slope": 0.8491791921207106,
+    "Intercept": 0.013102489303600966,
+    "PBIAS_percent": 3.6243752641264995,
+    "MeanBias": -0.0041446638711215,
+    "SalinitySlope_obs": 0.040052054375630516,
+    "SalinitySlope_model": 0.04005205454305014,
+    "SalinitySlope_gap": 1.6741962677313538e-10
+  },
+  "delta_tuned_minus_baseline": {
+    "R2_reg": 0.051432158370723124,
+    "R2_corr": 0.05143215837072301,
+    "r": 0.02958166189236211,
+    "RMSE": -0.004525105829181499,
+    "Slope": 0.1819954925658318,
+    "Intercept": -0.01354107885297159,
+    "PBIAS_percent": -6.358311276766793,
+    "MeanBias": 0.007271063592944763,
+    "SalinitySlope_obs": 0.0,
+    "SalinitySlope_model": 0.008390373397158132,
+    "SalinitySlope_gap": 0.008390373397158132
+  },
+  "figures": [
+    "fig_tuned_variable_comparison.png",
+    "fig_obs_vs_model_baseline_vs_tuned.png"
+  ]
+}

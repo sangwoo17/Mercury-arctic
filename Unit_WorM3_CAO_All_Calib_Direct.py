@@ -1,7 +1,23 @@
 from __future__ import annotations
 
+import argparse
 import numpy as np
 import pandas as pd
+
+
+DEFAULT_UVA_TUNING = {
+    "ko_uva_num": 0.340,
+    "rhg_uva_a": -0.0274,
+    "rhg_uva_b": 1.6344,
+    "rhg_uva_c": -23.752,
+}
+
+
+def _normalize_tuning(tuning: dict[str, float] | None) -> dict[str, float]:
+    out = dict(DEFAULT_UVA_TUNING)
+    if tuning:
+        out.update(tuning)
+    return out
 
 
 def solve_cao_ss_direct(
@@ -69,9 +85,13 @@ def solve_cao_ss_direct(
 
 def run_model(
     input_csv: str = "DGM_Valid_CAO.csv",
-    output_summary_csv: str = "Hg_budget_summary.csv",
-    output_metrics_csv: str = "Hg_model_metrics.csv",
+    output_summary_csv: str | None = "Hg_budget_summary.csv",
+    output_metrics_csv: str | None = "Hg_model_metrics.csv",
+    tuning: dict[str, float] | None = None,
+    verbose: bool = True,
 ):
+    coeff = _normalize_tuning(tuning)
+
     data = pd.read_csv(input_csv)
     rows = []
 
@@ -254,7 +274,12 @@ def run_model(
         OCRR_unit = NPP / z_eu * (1 - pe_ratio)
         OCRR = OCRR_unit / 1000 / 24 / 12
 
-        RHg_UVA = (-0.0274 * s_p**2 + 1.6344 * s_p - 23.752) / (1 + Kp * C_spm)
+        # Tunable RHg_UVA numerator coefficients (MATLAB RHg_UVA numerator counterpart).
+        # Manual tuning target in this port:
+        #   a*s^2 + b*s + c  where a,b,c = rhg_uva_a, rhg_uva_b, rhg_uva_c
+        RHg_UVA = (
+            coeff["rhg_uva_a"] * s_p**2 + coeff["rhg_uva_b"] * s_p + coeff["rhg_uva_c"]
+        ) / (1 + Kp * C_spm)
         RHg_UVB = 0.869 / (1 + Kp * C_spm)
 
         UV_B_exp = 1.4
@@ -278,7 +303,8 @@ def run_model(
         UV_B_exp2 = 1.35
         UV_A_exp2 = 5.33
 
-        ko_UVA = 0.340 / UV_A_exp2
+        # Tunable ko_UVA numerator coefficient (MATLAB ko_UVA = 0.340 / UV_A_exp2 counterpart).
+        ko_UVA = coeff["ko_uva_num"] / UV_A_exp2
         ko_UVB = 1.77 / UV_B_exp2
 
         ko_UVB_d = ko_UVB * UV_B * (1 - np.exp(-Kd_305 * MLD)) / Kd_305 / MLD
@@ -405,7 +431,8 @@ def run_model(
         )
 
     result_table = pd.DataFrame(rows)
-    result_table.to_csv(output_summary_csv, index=False)
+    if output_summary_csv is not None:
+        result_table.to_csv(output_summary_csv, index=False)
 
     obs = result_table["DGM_obs"].to_numpy(dtype=float)
     sim = result_table["Hg0_water"].to_numpy(dtype=float)
@@ -435,16 +462,17 @@ def run_model(
     PBIAS = 100 * np.sum(obs - sim) / np.sum(obs)
     Bias = np.mean(sim - obs)
 
-    print("\n===== Model Performance Metrics =====")
-    print(f"N             = {n:d}")
-    print(f"R^2 (reg)     = {R2_reg:.4f}")
-    print(f"R^2 (corr^2)  = {R2_corr:.4f}")
-    print(f"r             = {r:.4f}")
-    print(f"RMSE          = {RMSE:.4f}")
-    print(f"Slope         = {slope:.4f}")
-    print(f"Y-intercept   = {intercept:.4f}")
-    print(f"PBIAS (%)     = {PBIAS:.2f}")
-    print(f"Mean Bias     = {Bias:.4f}")
+    if verbose:
+        print("\n===== Model Performance Metrics =====")
+        print(f"N             = {n:d}")
+        print(f"R^2 (reg)     = {R2_reg:.4f}")
+        print(f"R^2 (corr^2)  = {R2_corr:.4f}")
+        print(f"r             = {r:.4f}")
+        print(f"RMSE          = {RMSE:.4f}")
+        print(f"Slope         = {slope:.4f}")
+        print(f"Y-intercept   = {intercept:.4f}")
+        print(f"PBIAS (%)     = {PBIAS:.2f}")
+        print(f"Mean Bias     = {Bias:.4f}")
 
     metrics_table = pd.DataFrame(
         [
@@ -461,10 +489,201 @@ def run_model(
             }
         ]
     )
-    metrics_table.to_csv(output_metrics_csv, index=False)
+    if output_metrics_csv is not None:
+        metrics_table.to_csv(output_metrics_csv, index=False)
 
     return result_table, metrics_table
 
 
+def _alignment_from_result(result_table: pd.DataFrame) -> dict[str, float]:
+    obs = result_table["DGM_obs"].to_numpy(dtype=float)
+    sim = result_table["Hg0_water"].to_numpy(dtype=float)
+    sal = result_table["Salinity"].to_numpy(dtype=float)
+
+    valid = np.isfinite(obs) & np.isfinite(sim) & np.isfinite(sal)
+    obs = obs[valid]
+    sim = sim[valid]
+    sal = sal[valid]
+
+    rmse = float(np.sqrt(np.mean((sim - obs) ** 2)))
+    slope_obs = float(np.polyfit(sal, obs, 1)[0])
+    slope_sim = float(np.polyfit(sal, sim, 1)[0])
+    slope_gap = slope_sim - slope_obs
+    slope_gap_abs = abs(slope_gap)
+
+    return {
+        "rmse": rmse,
+        "slope_obs_sal_dgm": slope_obs,
+        "slope_sim_sal_dgm": slope_sim,
+        "slope_gap": slope_gap,
+        "slope_gap_abs": slope_gap_abs,
+    }
+
+
+def _score_alignment(metrics: dict[str, float], slope_weight: float) -> float:
+    return metrics["rmse"] + slope_weight * metrics["slope_gap_abs"]
+
+
+def optimize_uva_coefficients(
+    input_csv: str = "DGM_Valid_CAO.csv",
+    random_seed: int = 42,
+    n_starts: int = 20,
+    n_iters: int = 120,
+    slope_weight: float = 2.0,
+    output_tuning_csv: str = "Hg_uva_tuning_result.csv",
+    output_summary_csv: str = "Hg_budget_summary_tuned.csv",
+    output_metrics_csv: str = "Hg_model_metrics_tuned.csv",
+) -> tuple[dict[str, float], pd.DataFrame, pd.DataFrame, dict[str, float]]:
+    bounds = {
+        "ko_uva_num": (0.10, 0.80),
+        "rhg_uva_a": (-0.08, 0.02),
+        "rhg_uva_b": (0.20, 3.00),
+        "rhg_uva_c": (-40.0, -5.0),
+    }
+    names = ["ko_uva_num", "rhg_uva_a", "rhg_uva_b", "rhg_uva_c"]
+
+    default = _normalize_tuning(None)
+    rng = np.random.default_rng(random_seed)
+    widths = np.array([bounds[n][1] - bounds[n][0] for n in names], dtype=float)
+    initial_step = 0.10 * widths
+
+    def clip_params(p: dict[str, float]) -> dict[str, float]:
+        out = {}
+        for n in names:
+            lo, hi = bounds[n]
+            out[n] = float(np.clip(p[n], lo, hi))
+        return out
+
+    def evaluate(p: dict[str, float]) -> tuple[float, dict[str, float]]:
+        rt, _ = run_model(
+            input_csv=input_csv,
+            output_summary_csv=None,
+            output_metrics_csv=None,
+            tuning=p,
+            verbose=False,
+        )
+        a = _alignment_from_result(rt)
+        score = _score_alignment(a, slope_weight=slope_weight)
+        return score, a
+
+    def local_search(start: dict[str, float]) -> tuple[dict[str, float], float, dict[str, float]]:
+        p = clip_params(start)
+        step = initial_step.copy()
+        best_score, best_align = evaluate(p)
+
+        for _ in range(n_iters):
+            improved = False
+            for i, n in enumerate(names):
+                for direction in (-1.0, 1.0):
+                    cand = dict(p)
+                    cand[n] = cand[n] + direction * step[i]
+                    cand = clip_params(cand)
+                    score, align = evaluate(cand)
+                    if score < best_score:
+                        p = cand
+                        best_score = score
+                        best_align = align
+                        improved = True
+            if not improved:
+                step *= 0.65
+                if float(np.max(step)) < 1e-5:
+                    break
+        return p, best_score, best_align
+
+    starts: list[dict[str, float]] = [default]
+    for _ in range(max(0, n_starts - 1)):
+        starts.append(
+            {
+                n: float(rng.uniform(bounds[n][0], bounds[n][1]))
+                for n in names
+            }
+        )
+
+    global_best_params = dict(default)
+    global_best_score = float("inf")
+    global_best_align: dict[str, float] | None = None
+
+    for s in starts:
+        p, score, align = local_search(s)
+        if score < global_best_score:
+            global_best_params = p
+            global_best_score = score
+            global_best_align = align
+
+    if global_best_align is None:
+        raise RuntimeError("Coefficient tuning failed to produce a valid solution.")
+
+    tuned_result, tuned_metrics = run_model(
+        input_csv=input_csv,
+        output_summary_csv=output_summary_csv,
+        output_metrics_csv=output_metrics_csv,
+        tuning=global_best_params,
+        verbose=True,
+    )
+    tuned_align = _alignment_from_result(tuned_result)
+    tuned_score = _score_alignment(tuned_align, slope_weight=slope_weight)
+
+    out = {
+        **global_best_params,
+        **tuned_align,
+        "objective_score": tuned_score,
+        "slope_weight": slope_weight,
+    }
+    pd.DataFrame([out]).to_csv(output_tuning_csv, index=False)
+
+    print("\n===== UVA Coefficient Tuning Result =====")
+    for n in names:
+        print(f"{n:12s} = {global_best_params[n]:.8f}")
+    print(f"RMSE         = {tuned_align['rmse']:.6f}")
+    print(f"Slope(obs)   = {tuned_align['slope_obs_sal_dgm']:.6f}")
+    print(f"Slope(sim)   = {tuned_align['slope_sim_sal_dgm']:.6f}")
+    print(f"Slope gap    = {tuned_align['slope_gap']:.6f}")
+    print(f"Objective    = {tuned_score:.6f}")
+
+    return global_best_params, tuned_result, tuned_metrics, out
+
+
+def _build_cli() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Run CAO Hg model and optionally tune ko_UVA / RHg_UVA coefficients."
+    )
+    parser.add_argument("--input-csv", default="DGM_Valid_CAO.csv")
+    parser.add_argument("--output-summary-csv", default="Hg_budget_summary.csv")
+    parser.add_argument("--output-metrics-csv", default="Hg_model_metrics.csv")
+    parser.add_argument(
+        "--tune-uva",
+        action="store_true",
+        help="Optimize ko_UVA and RHg_UVA coefficients against observed DGM.",
+    )
+    parser.add_argument("--random-seed", type=int, default=42)
+    parser.add_argument("--n-starts", type=int, default=20)
+    parser.add_argument("--n-iters", type=int, default=120)
+    parser.add_argument(
+        "--slope-weight",
+        type=float,
+        default=2.0,
+        help="Weight for |slope_sim(sal)-slope_obs(sal)| in objective.",
+    )
+    parser.add_argument("--output-tuning-csv", default="Hg_uva_tuning_result.csv")
+    return parser
+
+
 if __name__ == "__main__":
-    run_model()
+    args = _build_cli().parse_args()
+    if args.tune_uva:
+        optimize_uva_coefficients(
+            input_csv=args.input_csv,
+            random_seed=args.random_seed,
+            n_starts=args.n_starts,
+            n_iters=args.n_iters,
+            slope_weight=args.slope_weight,
+            output_tuning_csv=args.output_tuning_csv,
+            output_summary_csv=args.output_summary_csv,
+            output_metrics_csv=args.output_metrics_csv,
+        )
+    else:
+        run_model(
+            input_csv=args.input_csv,
+            output_summary_csv=args.output_summary_csv,
+            output_metrics_csv=args.output_metrics_csv,
+        )
